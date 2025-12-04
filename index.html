@@ -3,91 +3,78 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Object Detection — TFJS + Camera (Unified View)</title>
+  <title>Object Detection — Camera Merged</title>
   <style>
-    body{margin:0;background:#0b0f19;font-family:Arial;color:#fff;display:flex;justify-content:center;padding:20px}
-    #container{position:relative;width:640px;height:auto}
-    video,canvas{position:absolute;top:0;left:0;width:640px;height:480px;border-radius:10px}
-    #controls{margin-top:500px;text-align:center}
-    button{padding:10px 20px;border:0;border-radius:6px;background:#10b981;color:#001b0f;font-weight:bold;cursor:pointer}
-    select{padding:6px;border-radius:6px;border:1px solid #333;background:#111;color:#fff}
+    body{margin:0;background:#000;display:flex;justify-content:center;align-items:center;height:100vh;color:#fff;font-family:Arial}
+    #wrap{position:relative;width:720px;height:560px}
+    video,canvas{position:absolute;top:0;left:0;width:720px;height:560px;object-fit:cover;border-radius:12px}
+    #controls{position:absolute;bottom:10px;left:50%;transform:translateX(-50%);}
+    select,button{padding:8px 12px;border-radius:6px;border:0;margin-right:6px}
   </style>
 </head>
 <body>
 
-<div>
-  <div id="container">
-    <video id="video" autoplay playsinline muted></video>
-    <canvas id="canvas"></canvas>
-  </div>
-
+<div id="wrap">
+  <video id="video" autoplay playsinline muted></video>
+  <canvas id="canvas"></canvas>
   <div id="controls">
     <select id="cameraSelect"></select>
     <button id="startBtn">Start</button>
   </div>
 </div>
 
-<script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.14.0/dist/tf.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/coco-ssd@2.2.2/dist/coco-ssd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs"></script>
+<script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/coco-ssd"></script>
 
 <script>
-let video=document.getElementById("video");
-let canvas=document.getElementById("canvas");
-let ctx=canvas.getContext("2d");
-let cameraSelect=document.getElementById("cameraSelect");
+const video=document.getElementById("video");
+const canvas=document.getElementById("canvas");
+const ctx=canvas.getContext("2d");
 let model=null;
-let running=false;
+let run=false;
 
-async function listCameras(){
-  const devices=await navigator.mediaDevices.enumerateDevices();
-  const cams=devices.filter(d=>d.kind==="videoinput");
-  cams.forEach((c,i)=>{
-    let opt=document.createElement("option");
-    opt.value=c.deviceId;
-    opt.text=c.label||`Camera ${i+1}`;
-    cameraSelect.appendChild(opt);
+async function getCameras(){
+  const dev=await navigator.mediaDevices.enumerateDevices();
+  dev.filter(d=>d.kind==="videoinput").forEach((c,i)=>{
+    let o=document.createElement("option");
+    o.value=c.deviceId;
+    o.text=c.label||`Camera ${i+1}`;
+    cameraSelect.appendChild(o);
   });
 }
 
-async function startCamera(){
+async function startCam(){
   const id=cameraSelect.value;
   const stream=await navigator.mediaDevices.getUserMedia({video:{deviceId:{exact:id}}});
   video.srcObject=stream;
   await video.play();
 }
 
-function draw(preds){
+function render(pred){
   ctx.clearRect(0,0,canvas.width,canvas.height);
-  preds.forEach(p=>{
+  pred.forEach(p=>{
     const [x,y,w,h]=p.bbox;
     ctx.strokeStyle="lime";
-    ctx.lineWidth=2;
+    ctx.lineWidth=3;
     ctx.strokeRect(x,y,w,h);
-    ctx.fillStyle="rgba(0,0,0,0.6)";
-    ctx.fillRect(x,y-18,120,18);
-    ctx.fillStyle="white";
-    ctx.fillText(p.class+" "+(p.score*100).toFixed(1)+"%",x+4,y-16);
+    ctx.fillStyle="rgba(0,0,0,0.5)";
+    ctx.fillRect(x,y-24,150,24);
+    ctx.fillStyle="#fff";
+    ctx.font="16px Arial";
+    ctx.fillText(`${p.class} ${(p.score*100).toFixed(1)}%`,x+4,y-6);
   });
 }
 
 async function loop(){
-  if(!running) return;
-  const preds=await model.detect(video);
-  draw(preds);
+  if(!run) return;
+  const pred=await model.detect(video);
+  render(pred);
   requestAnimationFrame(loop);
 }
 
-(async()=>{
-  await listCameras();
-  model=await cocoSsd.load();
-})();
+(async()=>{ model=await cocoSsd.load(); await getCameras(); })();
 
-document.getElementById("startBtn").onclick=async()=>{
-  await startCamera();
-  running=true;
-  loop();
-};
+startBtn.onclick=async()=>{ run=true; await startCam(); loop(); };
 </script>
-
 </body>
 </html>
