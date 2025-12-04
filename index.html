@@ -1,25 +1,71 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Object Detection — Camera Merged</title>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>TFJS Object Detection (Clean Version)</title>
   <style>
-    body{margin:0;background:#000;display:flex;justify-content:center;align-items:center;height:100vh;color:#fff;font-family:Arial}
-    #wrap{position:relative;width:720px;height:560px}
-    video,canvas{position:absolute;top:0;left:0;width:720px;height:560px;object-fit:cover;border-radius:12px}
-    #controls{position:absolute;bottom:10px;left:50%;transform:translateX(-50%);}
-    select,button{padding:8px 12px;border-radius:6px;border:0;margin-right:6px}
+    body {
+      margin: 0;
+      background: #10131a;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      height: 100vh;
+      font-family: Arial;
+      color: #fff;
+    }
+
+    #cameraBox {
+      position: relative;
+      width: 720px;
+      height: 540px;
+    }
+
+    video,
+    canvas {
+      position: absolute;
+      width: 720px;
+      height: 540px;
+      top: 0;
+      left: 0;
+      object-fit: cover;
+      border-radius: 14px;
+    }
+
+    #controls {
+      position: absolute;
+      bottom: 15px;
+      left: 50%;
+      transform: translateX(-50%);
+      display: flex;
+      gap: 10px;
+    }
+
+    select,
+    button {
+      padding: 10px 14px;
+      border-radius: 6px;
+      border: none;
+      font-size: 14px;
+    }
+
+    button {
+      background: #00ff9c;
+      font-weight: bold;
+      cursor: pointer;
+    }
   </style>
 </head>
 <body>
 
-<div id="wrap">
+<div id="cameraBox">
   <video id="video" autoplay playsinline muted></video>
   <canvas id="canvas"></canvas>
+
   <div id="controls">
     <select id="cameraSelect"></select>
-    <button id="startBtn">Start</button>
+    <button id="startBtn">Start Detection</button>
   </div>
 </div>
 
@@ -27,54 +73,77 @@
 <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/coco-ssd"></script>
 
 <script>
-const video=document.getElementById("video");
-const canvas=document.getElementById("canvas");
-const ctx=canvas.getContext("2d");
-let model=null;
-let run=false;
+const video = document.getElementById("video");
+const canvas = document.getElementById("canvas");
+const ctx = canvas.getContext("2d");
+let model = null;
+let active = false;
 
-async function getCameras(){
-  const dev=await navigator.mediaDevices.enumerateDevices();
-  dev.filter(d=>d.kind==="videoinput").forEach((c,i)=>{
-    let o=document.createElement("option");
-    o.value=c.deviceId;
-    o.text=c.label||`Camera ${i+1}`;
-    cameraSelect.appendChild(o);
+// Load camera list
+async function loadCameras() {
+  const devices = await navigator.mediaDevices.enumerateDevices();
+  const cams = devices.filter((d) => d.kind === "videoinput");
+
+  cams.forEach((cam, i) => {
+    const opt = document.createElement("option");
+    opt.value = cam.deviceId;
+    opt.text = cam.label || `Camera ${i + 1}`;
+    cameraSelect.appendChild(opt);
   });
 }
 
-async function startCam(){
-  const id=cameraSelect.value;
-  const stream=await navigator.mediaDevices.getUserMedia({video:{deviceId:{exact:id}}});
-  video.srcObject=stream;
+// Start selected camera
+async function startCamera() {
+  const id = cameraSelect.value;
+  const stream = await navigator.mediaDevices.getUserMedia({
+    video: { deviceId: { exact: id } },
+  });
+
+  video.srcObject = stream;
   await video.play();
 }
 
-function render(pred){
-  ctx.clearRect(0,0,canvas.width,canvas.height);
-  pred.forEach(p=>{
-    const [x,y,w,h]=p.bbox;
-    ctx.strokeStyle="lime";
-    ctx.lineWidth=3;
-    ctx.strokeRect(x,y,w,h);
-    ctx.fillStyle="rgba(0,0,0,0.5)";
-    ctx.fillRect(x,y-24,150,24);
-    ctx.fillStyle="#fff";
-    ctx.font="16px Arial";
-    ctx.fillText(`${p.class} ${(p.score*100).toFixed(1)}%`,x+4,y-6);
+// Draw bounding boxes
+function draw(predictions) {
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+  predictions.forEach((p) => {
+    const [x, y, w, h] = p.bbox;
+
+    ctx.strokeStyle = "#00ff9c";
+    ctx.lineWidth = 3;
+    ctx.strokeRect(x, y, w, h);
+
+    ctx.fillStyle = "rgba(0, 0, 0, 0.6)";
+    ctx.fillRect(x, y - 28, 180, 28);
+
+    ctx.fillStyle = "#fff";
+    ctx.font = "16px Arial";
+    ctx.fillText(`${p.class} ${(p.score * 100).toFixed(1)}%`, x + 5, y - 8);
   });
 }
 
-async function loop(){
-  if(!run) return;
-  const pred=await model.detect(video);
-  render(pred);
-  requestAnimationFrame(loop);
+// Main loop
+async function detectLoop() {
+  if (!active) return;
+
+  const predictions = await model.detect(video);
+  draw(predictions);
+
+  requestAnimationFrame(detectLoop);
 }
 
-(async()=>{ model=await cocoSsd.load(); await getCameras(); })();
+(async () => {
+  model = await cocoSsd.load();
+  await loadCameras();
+})();
 
-startBtn.onclick=async()=>{ run=true; await startCam(); loop(); };
+startBtn.onclick = async () => {
+  active = true;
+  await startCamera();
+  detectLoop();
+};
 </script>
+
 </body>
 </html>
