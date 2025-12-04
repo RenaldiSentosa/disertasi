@@ -3,266 +3,91 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>TensorFlow.js Object Detection (Coco-SSD) — GitHub Pages Ready</title>
+  <title>Object Detection — TFJS + Camera (Unified View)</title>
   <style>
-    :root{--bg:#0f1724;--card:#0b1220;--accent:#10b981;--muted:#9ca3af;--white:#e6eef8}
-    html,body{height:100%;margin:0;font-family:Inter,ui-sans-serif,system-ui,Segoe UI,Roboto,"Helvetica Neue",Arial}
-    body{background:linear-gradient(180deg,#071025 0%, #07182b 100%);color:var(--white);display:flex;align-items:flex-start;justify-content:center;padding:28px}
-    .app{width:980px;max-width:96%;background:rgba(255,255,255,0.03);border-radius:12px;padding:16px;box-shadow:0 8px 30px rgba(2,6,23,0.6)}
-    h1{margin:6px 0 12px;font-size:18px}
-    .controls{display:flex;gap:12px;flex-wrap:wrap;margin-bottom:12px}
-    .controls > *{background:var(--card);border-radius:8px;padding:8px 10px;color:var(--white);font-size:13px}
-    select,input[type=number]{background:transparent;border:1px solid rgba(255,255,255,0.06);padding:6px;border-radius:6px;color:var(--white)}
-    button{cursor:pointer;border:0;padding:8px 12px;border-radius:8px;background:var(--accent);color:#02201a;font-weight:600}
-    .video-wrap{display:flex;gap:12px}
-    video,canvas{border-radius:8px;border:1px solid rgba(255,255,255,0.04);background:#000}
-    .sidebar{width:300px;flex-shrink:0}
-    .main{flex:1}
-    .stat{font-size:13px;color:var(--muted);margin-top:8px}
-    .log{height:220px;overflow:auto;background:rgba(255,255,255,0.02);border-radius:8px;padding:8px;font-family:monospace;font-size:12px;color:var(--muted)}
-    footer{font-size:12px;color:var(--muted);margin-top:10px}
+    body{margin:0;background:#0b0f19;font-family:Arial;color:#fff;display:flex;justify-content:center;padding:20px}
+    #container{position:relative;width:640px;height:auto}
+    video,canvas{position:absolute;top:0;left:0;width:640px;height:480px;border-radius:10px}
+    #controls{margin-top:500px;text-align:center}
+    button{padding:10px 20px;border:0;border-radius:6px;background:#10b981;color:#001b0f;font-weight:bold;cursor:pointer}
+    select{padding:6px;border-radius:6px;border:1px solid #333;background:#111;color:#fff}
   </style>
 </head>
 <body>
-  <div class="app">
-    <h1>TensorFlow.js Object Detection — Coco-SSD (Static single-file, GitHub Pages)</h1>
 
-    <div class="controls">
-      <div>
-        <label for="cameraSelect">Pilih kamera</label><br>
-        <select id="cameraSelect"></select>
-      </div>
-
-      <div>
-        <label for="resolution">Ukuran canvas</label><br>
-        <select id="resolution">
-          <option value="320x240">320×240</option>
-          <option value="480x360">480×360</option>
-          <option value="640x480" selected>640×480</option>
-        </select>
-      </div>
-
-      <div>
-        <label for="frameSkip">Process every N frames</label><br>
-        <input id="frameSkip" type="number" min="1" max="10" value="1" style="width:72px" />
-      </div>
-
-      <div style="display:flex;align-items:center;gap:8px">
-        <button id="startBtn">Start</button>
-        <button id="stopBtn" disabled>Stop</button>
-      </div>
-
-      <div style="display:flex;flex-direction:column;justify-content:center">
-        <div class="stat">Model: <span id="modelStatus">loading…</span></div>
-        <div class="stat">FPS: <span id="fps">0</span></div>
-      </div>
-    </div>
-
-    <div class="video-wrap">
-      <div class="main">
-        <video id="video" autoplay playsinline muted style="width:100%;max-height:480px;object-fit:cover"></video>
-        <canvas id="overlay" width="640" height="480" style="position:relative;margin-top:8px;width:100%"></canvas>
-      </div>
-
-      <div class="sidebar">
-        <div class="log" id="log">Log: ready.</div>
-        <footer>Tips: Upload this single HTML file to a GitHub repo and enable GitHub Pages on the main branch. Open page over HTTPS to allow camera access.</footer>
-      </div>
-    </div>
+<div>
+  <div id="container">
+    <video id="video" autoplay playsinline muted></video>
+    <canvas id="canvas"></canvas>
   </div>
 
-  <!-- TensorFlow.js and Coco-SSD from CDN -->
-  <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.14.0/dist/tf.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/coco-ssd@2.2.2/dist/coco-ssd.min.js"></script>
+  <div id="controls">
+    <select id="cameraSelect"></select>
+    <button id="startBtn">Start</button>
+  </div>
+</div>
 
-  <script>
-    // Elements
-    const video = document.getElementById('video');
-    const overlay = document.getElementById('overlay');
-    const ctx = overlay.getContext('2d');
-    const cameraSelect = document.getElementById('cameraSelect');
-    const resolution = document.getElementById('resolution');
-    const startBtn = document.getElementById('startBtn');
-    const stopBtn = document.getElementById('stopBtn');
-    const frameSkipInput = document.getElementById('frameSkip');
-    const logEl = document.getElementById('log');
-    const modelStatus = document.getElementById('modelStatus');
-    const fpsEl = document.getElementById('fps');
+<script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.14.0/dist/tf.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/coco-ssd@2.2.2/dist/coco-ssd.min.js"></script>
 
-    let model = null;
-    let stream = null;
-    let running = false;
-    let frameCount = 0;
-    let lastTime = performance.now();
-    let framesForFPS = 0;
+<script>
+let video=document.getElementById("video");
+let canvas=document.getElementById("canvas");
+let ctx=canvas.getContext("2d");
+let cameraSelect=document.getElementById("cameraSelect");
+let model=null;
+let running=false;
 
-    // Utility
-    function log(msg){
-      const time = new Date().toLocaleTimeString();
-      logEl.textContent = `[${time}] ${msg}\n` + logEl.textContent;
-    }
+async function listCameras(){
+  const devices=await navigator.mediaDevices.enumerateDevices();
+  const cams=devices.filter(d=>d.kind==="videoinput");
+  cams.forEach((c,i)=>{
+    let opt=document.createElement("option");
+    opt.value=c.deviceId;
+    opt.text=c.label||`Camera ${i+1}`;
+    cameraSelect.appendChild(opt);
+  });
+}
 
-    async function listCameras(){
-      try{
-        const devices = await navigator.mediaDevices.enumerateDevices();
-        const cams = devices.filter(d => d.kind === 'videoinput');
-        cameraSelect.innerHTML = '';
-        cams.forEach((c,i) => {
-          const opt = document.createElement('option');
-          opt.value = c.deviceId;
-          opt.text = c.label || `Camera ${i+1}`;
-          cameraSelect.appendChild(opt);
-        });
-        if(cams.length===0) cameraSelect.innerHTML = '<option value="">-- no camera --</option>';
-      }catch(err){
-        log('Error listing cameras: ' + err.message);
-      }
-    }
+async function startCamera(){
+  const id=cameraSelect.value;
+  const stream=await navigator.mediaDevices.getUserMedia({video:{deviceId:{exact:id}}});
+  video.srcObject=stream;
+  await video.play();
+}
 
-    async function startCamera(){
-      const res = resolution.value.split('x').map(n=>parseInt(n));
-      const constraints = {
-        audio: false,
-        video: {
-          deviceId: cameraSelect.value ? {exact: cameraSelect.value} : undefined,
-          width: {ideal: res[0]},
-          height: {ideal: res[1]}
-        }
-      };
-      try{
-        if(stream){ stopCamera(); }
-        stream = await navigator.mediaDevices.getUserMedia(constraints);
-        video.srcObject = stream;
-        await video.play();
-        overlay.width = video.videoWidth || res[0];
-        overlay.height = video.videoHeight || res[1];
-        log('Camera started: ' + (cameraSelect.selectedOptions[0]?.text || 'default') );
-      }catch(err){
-        log('Failed to start camera: ' + err.message);
-        throw err;
-      }
-    }
+function draw(preds){
+  ctx.clearRect(0,0,canvas.width,canvas.height);
+  preds.forEach(p=>{
+    const [x,y,w,h]=p.bbox;
+    ctx.strokeStyle="lime";
+    ctx.lineWidth=2;
+    ctx.strokeRect(x,y,w,h);
+    ctx.fillStyle="rgba(0,0,0,0.6)";
+    ctx.fillRect(x,y-18,120,18);
+    ctx.fillStyle="white";
+    ctx.fillText(p.class+" "+(p.score*100).toFixed(1)+"%",x+4,y-16);
+  });
+}
 
-    function stopCamera(){
-      if(stream){
-        stream.getTracks().forEach(t=>t.stop());
-        stream = null;
-        video.srcObject = null;
-        log('Camera stopped');
-      }
-    }
+async function loop(){
+  if(!running) return;
+  const preds=await model.detect(video);
+  draw(preds);
+  requestAnimationFrame(loop);
+}
 
-    async function loadModel(){
-      try{
-        modelStatus.textContent = 'loading model...';
-        // coco-ssd.ready() is not necessary; use load()
-        model = await cocoSsd.load();
-        modelStatus.textContent = 'coco-ssd loaded';
-        log('Model loaded (coco-ssd)');
-      }catch(err){
-        modelStatus.textContent = 'failed to load';
-        log('Model load error: ' + err.message);
-      }
-    }
+(async()=>{
+  await listCameras();
+  model=await cocoSsd.load();
+})();
 
-    async function detectLoop(){
-      if(!running) return;
-      frameCount++;
-      const skip = Math.max(1, parseInt(frameSkipInput.value) || 1);
-      if(frameCount % skip === 0){
-        // Run detection
-        try{
-          const predictions = await model.detect(video);
-          drawPredictions(predictions);
-        }catch(err){
-          log('Detect error: ' + err.message);
-        }
-      }
-      // FPS calculation
-      framesForFPS++;
-      const now = performance.now();
-      if(now - lastTime >= 1000){
-        fpsEl.textContent = framesForFPS;
-        framesForFPS = 0;
-        lastTime = now;
-      }
-      requestAnimationFrame(detectLoop);
-    }
+document.getElementById("startBtn").onclick=async()=>{
+  await startCamera();
+  running=true;
+  loop();
+};
+</script>
 
-    function drawPredictions(preds){
-      ctx.clearRect(0,0,overlay.width,overlay.height);
-      ctx.font = '14px Arial';
-      ctx.textBaseline = 'top';
-      preds.forEach(p => {
-        const [x,y,w,h] = p.bbox;
-        // box
-        ctx.strokeStyle = '#00ff99';
-        ctx.lineWidth = 2;
-        ctx.strokeRect(x,y,w,h);
-        // label background
-        const label = `${p.class} ${(p.score*100).toFixed(1)}%`;
-        const textWidth = ctx.measureText(label).width + 6;
-        const textHeight = 18;
-        ctx.fillStyle = 'rgba(0,0,0,0.6)';
-        ctx.fillRect(x, y - textHeight, textWidth, textHeight);
-        // text
-        ctx.fillStyle = '#e6fff2';
-        ctx.fillText(label, x+3, y - textHeight + 2);
-      });
-    }
-
-    // Controls
-    startBtn.addEventListener('click', async ()=>{
-      startBtn.disabled = true;
-      try{
-        await startCamera();
-        running = true;
-        stopBtn.disabled = false;
-        log('Starting detection loop...');
-        if(!model) await loadModel();
-        requestAnimationFrame(detectLoop);
-      }catch(err){
-        log('Start error: ' + err.message);
-      } finally{
-        startBtn.disabled = false;
-      }
-    });
-
-    stopBtn.addEventListener('click', ()=>{
-      running = false;
-      stopCamera();
-      stopBtn.disabled = true;
-      log('Detection stopped');
-    });
-
-    cameraSelect.addEventListener('change', async ()=>{
-      if(stream){
-        try{ await startCamera(); }catch(e){/* ignore */}
-      }
-    });
-
-    resolution.addEventListener('change', async ()=>{
-      if(stream){
-        try{ await startCamera(); }catch(e){/* ignore */}
-      }
-    });
-
-    // Init
-    (async function init(){
-      if(!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia){
-        log('Your browser does not support getUserMedia API. Use a modern browser (Chrome, Edge, Firefox).');
-        return;
-      }
-      await listCameras();
-      // Preload model in background (optional)
-      loadModel();
-      log('Ready. Choose camera and press Start.');
-
-      // If page is served from file:// GitHub Pages will serve over https — recommended.
-    })();
-
-    // Helpful: refresh camera list when devices change
-    navigator.mediaDevices.addEventListener('devicechange', listCameras);
-  </script>
 </body>
 </html>
